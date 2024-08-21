@@ -185,8 +185,11 @@ app.get('/products', async (req, res) => {
 // Add a new product
 app.post('/products', async (req, res) => {
   try {
-    const { product_name, product_price } = req.body;
-    await pool.query('INSERT INTO products (product_name, product_price) VALUES ($1, $2)', [product_name, product_price]);
+    const { product_name, product_price, stock } = req.body; // Added stock
+    if (!product_name || product_price === undefined || stock === undefined) {
+      return res.status(400).json({ error: 'Product name, price, and stock are required' });
+    }
+    await pool.query('INSERT INTO products (product_name, product_price, stock) VALUES ($1, $2, $3)', [product_name, product_price, stock]);
     res.status(201).json({ message: 'Product created successfully' });
   } catch (error) {
     console.error('Error adding product:', error);
@@ -198,8 +201,11 @@ app.post('/products', async (req, res) => {
 app.put('/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { product_name, product_price } = req.body;
-    await pool.query('UPDATE products SET product_name = $1, product_price = $2 WHERE product_id = $3', [product_name, product_price, id]);
+    const { product_name, product_price, stock } = req.body;
+    if (!product_name || product_price === undefined || stock === undefined) {
+      return res.status(400).json({ error: 'Product name, price, and stock are required' });
+    }
+    await pool.query('UPDATE products SET product_name = $1, product_price = $2, stock = $3 WHERE product_id = $4', [product_name, product_price, stock, id]);
     res.json({ message: 'Product updated successfully' });
   } catch (error) {
     console.error('Error updating product:', error);
