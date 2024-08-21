@@ -53,6 +53,16 @@ app.get('/customers/:phoneNo', async (req, res) => {
   }
 });
 
+// Get all customers
+app.get('/customers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM customers');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Route to add a new customer
 app.post('/customers', async (req, res) => {
@@ -69,23 +79,81 @@ app.post('/customers', async (req, res) => {
   }
 });
 
-app.get('/api/customers/:phone_no', async (req, res) => {
-  const { phone_no } = req.params;
-  console.log('Fetching customer with phone number:', phoneNo); // Debugging line
+// Update a customer
+app.put('/customers/:id', async (req, res) => {
   try {
-    const customer = await pool.query(
-      'SELECT user_id, fname, email, phone_no FROM customers WHERE phone_no = $1',
-      [phone_no]
+    const { id } = req.params;
+    const { fname, lname, date_of_birth, phone_no, email, address, city, postcode, country, sickness, sex, pregnant, remark, stratum_corneum, skin_type, skincare_program, micro_surgery } = req.body;
+    await pool.query(
+      'UPDATE customers SET fname = $1, lname = $2, date_of_birth = $3, phone_no = $4, email = $5, address = $6, city = $7, postcode = $8, country = $9, sickness = $10, sex = $11, pregnant = $12, remark = $13, stratum_corneum = $14, skin_type = $15, skincare_program = $16, micro_surgery = $17 WHERE user_id = $18',
+      [fname, lname, date_of_birth, phone_no, email, address, city, postcode, country, sickness, sex, pregnant, remark, stratum_corneum, skin_type, skincare_program, micro_surgery, id]
     );
-    console.log('Query result:', result.rows); // Debugging line
-    if (customer.rows.length > 0) {
-      res.json(customer.rows[0]);
-    } else {
-      res.status(404).json({ message: 'Customer not found' });
-    }
+    res.json({ message: 'Customer updated successfully' });
   } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error updating customer:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a customer
+app.delete('/customers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM customers WHERE user_id = $1', [id]);
+    res.json({ message: 'Customer deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting customer:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// CRUD Operations for Services
+
+// Get all services
+app.get('/services', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM services');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add a new service
+app.post('/services', async (req, res) => {
+  try {
+    const { service_name, service_price } = req.body;
+    await pool.query('INSERT INTO services (service_name, service_price) VALUES ($1, $2)', [service_name, service_price]);
+    res.status(201).json({ message: 'Service created successfully' });
+  } catch (error) {
+    console.error('Error adding service:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update a service
+app.put('/services/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { service_name, service_price } = req.body;
+    await pool.query('UPDATE services SET service_name = $1, service_price = $2 WHERE service_id = $3', [service_name, service_price, id]);
+    res.json({ message: 'Service updated successfully' });
+  } catch (error) {
+    console.error('Error updating service:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a service
+app.delete('/services/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM services WHERE service_id = $1', [id]);
+    res.json({ message: 'Service deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting service:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -101,6 +169,56 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
+// CRUD Operations for Products
+
+// Get all products
+app.get('/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add a new product
+app.post('/products', async (req, res) => {
+  try {
+    const { product_name, product_price } = req.body;
+    await pool.query('INSERT INTO products (product_name, product_price) VALUES ($1, $2)', [product_name, product_price]);
+    res.status(201).json({ message: 'Product created successfully' });
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update a product
+app.put('/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { product_name, product_price } = req.body;
+    await pool.query('UPDATE products SET product_name = $1, product_price = $2 WHERE product_id = $3', [product_name, product_price, id]);
+    res.json({ message: 'Product updated successfully' });
+  } catch (error) {
+    console.error('Error updating product:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a product
+app.delete('/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM products WHERE product_id = $1', [id]);
+    res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/products', async (req, res) => {
   try {
     const products = await pool.query(
@@ -112,6 +230,20 @@ app.get('/api/products', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// CRUD Operations for Appointments
+
+// Get all appointments
+app.get('/appointments', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM appointments');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 // Route to add a new appointment
 app.post('/appointments', async (req, res) => {
@@ -133,6 +265,72 @@ app.post('/appointments', async (req, res) => {
   } catch (error) {
     console.error('Error adding appointment:', error);
     res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
+// Update an appointment
+app.put('/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, date, time, status, service_id, service_remark } = req.body;
+    await pool.query('UPDATE appointments SET user_id = $1, date = $2, time = $3, status = $4, service_id = $5, service_remark = $6 WHERE appointment_id = $7', [user_id, date, time, status, service_id, service_remark, id]);
+    res.json({ message: 'Appointment updated successfully' });
+  } catch (error) {
+    console.error('Error updating appointment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete an appointment
+app.delete('/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM appointments WHERE appointment_id = $1', [id]);
+    res.json({ message: 'Appointment deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// CRUD Operations for Orders
+
+// Get all orders
+app.get('/orders', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM orders');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update an order
+app.put('/orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, service_id, product_id, qty, total_product_price, total_order_price, payment_method, paid_date, order_status, order_remark } = req.body;
+    await pool.query(
+      'UPDATE orders SET user_id = $1, service_id = $2, product_id = $3, qty = $4, total_product_price = $5, total_order_price = $6, payment_method = $7, paid_date = $8, order_status = $9, order_remark = $10 WHERE order_id = $11',
+      [user_id, service_id, product_id, qty, total_product_price, total_order_price, payment_method, paid_date, order_status, order_remark, id]
+    );
+    res.json({ message: 'Order updated successfully' });
+  } catch (error) {
+    console.error('Error updating order:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete an order
+app.delete('/orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM orders WHERE order_id = $1', [id]);
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
