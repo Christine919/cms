@@ -44,20 +44,20 @@ async function getCustomerByPhoneNo(phoneNo) {
 
 // Login endpoint
 app.post('/login', (req, res) => {
-  const { email, password } = req.body;
+  const { username, password } = req.body;
 
   // Example user data; replace with actual authentication logic
   const user = {
-    email: 'admin@gmail.com',
-    password: 'password', // Note: Passwords should be hashed in production
+    username: 'britney',
+    password: '1234', // Note: Passwords should be hashed in production
   };
 
-  // Check if the provided email and password match
-  if (email === user.email && password === user.password) {
-    const token = jwt.sign({ email: user.email }, 'your_jwt_secret', { expiresIn: '1h' });
+  // Check if the provided username and password match
+  if (username === user.username && password === user.password) {
+    const token = jwt.sign({ username: user.username }, 'your_jwt_secret', { expiresIn: '1h' });
     res.json({ token });
   } else {
-    res.status(401).json({ message: 'Invalid email or password' });
+    res.status(401).json({ message: 'Invalid username or password' });
   }
 });
 
@@ -149,7 +149,8 @@ app.post('/services', async (req, res) => {
   try {
     const { service_name, service_price } = req.body;
     await pool.query('INSERT INTO services (service_name, service_price) VALUES ($1, $2)', [service_name, service_price]);
-    res.status(201).json({ message: 'Service created successfully' });
+    const result = await pool.query('SELECT * FROM services ORDER BY service_id DESC LIMIT 1'); // Get the newly added service
+    res.status(201).json({ message: 'Service created successfully', service: result.rows[0] });
   } catch (error) {
     console.error('Error adding service:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -162,7 +163,8 @@ app.put('/services/:id', async (req, res) => {
     const { id } = req.params;
     const { service_name, service_price } = req.body;
     await pool.query('UPDATE services SET service_name = $1, service_price = $2 WHERE service_id = $3', [service_name, service_price, id]);
-    res.json({ message: 'Service updated successfully' });
+    const result = await pool.query('SELECT * FROM services WHERE service_id = $1', [id]); // Get the updated service
+    res.json({ message: 'Service updated successfully', service: result.rows[0] });
   } catch (error) {
     console.error('Error updating service:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -301,15 +303,32 @@ app.post('/appointments', async (req, res) => {
 // Update an appointment
 app.put('/appointments/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { user_id, date, time, status, service_id, service_remark } = req.body;
-    await pool.query('UPDATE appointments SET user_id = $1, date = $2, time = $3, status = $4, service_id = $5, service_remark = $6 WHERE appointment_id = $7', [user_id, date, time, status, service_id, service_remark, id]);
+    const { id } = req.params; // Get the appointment ID from the route parameter
+    const { app_date, app_time, app_status, remark } = req.body; // Get data from request body
+
+    // Log the incoming data to verify correctness
+    console.log('Updating appointment with ID:', id);
+    console.log('Data to update:', { app_date, app_time, app_status, remark });
+
+    // Ensure `id` is a valid integer and check if `user_id` is used correctly
+    if (isNaN(parseInt(id))) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    // Update query
+    await pool.query(
+      'UPDATE appointments SET app_date = $1, app_time = $2, app_status = $3, remark = $4 WHERE app_id = $5',
+      [app_date, app_time, app_status, remark, id] // Ensure `id` is properly passed and converted
+    );
+    
     res.json({ message: 'Appointment updated successfully' });
   } catch (error) {
     console.error('Error updating appointment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+
 
 // Delete an appointment
 app.delete('/appointments/:id', async (req, res) => {
