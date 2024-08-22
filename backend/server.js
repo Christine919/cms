@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pkg from 'pg'; // Import the entire module
+import jwt from 'jsonwebtoken';
 
 const { Pool } = pkg; // Destructure Pool from the module
 
@@ -20,6 +21,9 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
+// Secret key for JWT
+const JWT_SECRET = 'your_jwt_secret';
+
 // Middleware
 app.use(cors({
   origin: 'http://localhost:3000', // Adjust if your frontend is on a different port or domain
@@ -36,7 +40,27 @@ async function getCustomerByPhoneNo(phoneNo) {
     console.error('Error fetching customer details:', error);
     throw error; // Rethrow the error to be handled by the caller
   }
-}
+};
+
+// Login endpoint
+app.post('/login', (req, res) => {
+  const { email, password } = req.body;
+
+  // Example user data; replace with actual authentication logic
+  const user = {
+    email: 'admin@gmail.com',
+    password: 'password', // Note: Passwords should be hashed in production
+  };
+
+  // Check if the provided email and password match
+  if (email === user.email && password === user.password) {
+    const token = jwt.sign({ email: user.email }, 'your_jwt_secret', { expiresIn: '1h' });
+    res.json({ token });
+  } else {
+    res.status(401).json({ message: 'Invalid email or password' });
+  }
+});
+
 
 // Route to get a customer by phone number
 app.get('/customers/:phoneNo', async (req, res) => {
