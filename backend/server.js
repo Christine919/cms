@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import pkg from 'pg'; // Import the entire module
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import path  from 'path';
 
 const { Pool } = pkg; // Destructure Pool from the module
 
@@ -30,6 +32,54 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Set Storage Engine
+const storage = multer.diskStorage({
+  destination: './uploads/', // Folder to save uploaded files
+  filename: function(req, file, cb) {
+    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+// Initialize Upload
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // Limit to 10MB per file
+  fileFilter: function(req, file, cb) {
+    checkFileType(file, cb);
+  }
+}).array('photos', 10); // Handling multiple file uploads, max 10 files
+
+// Check File Type
+function checkFileType(file, cb) {
+  const filetypes = /jpeg|jpg|png|gif/;
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = filetypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb('Error: Images Only!');
+  }
+}
+
+// Route to handle file upload
+app.post('/upload', (req, res) => {
+  upload(req, res, (err) => {
+    if (err) {
+      res.status(400).json({ message: err });
+    } else {
+      if (req.files == undefined) {
+        res.status(400).json({ message: 'No File Selected!' });
+      } else {
+        res.status(200).json({
+          message: 'File Uploaded!',
+          files: req.files.map(file => file.filename)
+        });
+      }
+    }
+  });
+});
 
 // Define the getCustomerByPhoneNo function
 async function getCustomerByPhoneNo(phoneNo) {
