@@ -395,7 +395,7 @@ app.delete('/appointments/:id', async (req, res) => {
 // Get all orders
 app.get('/orders', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM orders');
+    const result = await pool.query('SELECT * FROM order_dashboard');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching orders:', error);
@@ -461,16 +461,16 @@ app.post('/orders', async (req, res) => {
     // Insert services into OrderServices
     for (const service of services) {
       await client.query(
-        'INSERT INTO orderservices (order_id, service_id, service_name, service_disc, total_service_price) VALUES ($1, $2, $3, $4, $5)',
-        [order_id, service.service_id, service.service_name, service.service_disc, service.total_service_price]
+        'INSERT INTO orderservices (order_id, service_id, service_name, service_price, service_disc, total_service_price) VALUES ($1, $2, $3, $4, $5, $6)',
+        [order_id, service.service_id, service.service_name, service.service_price, service.service_disc, service.total_service_price]
       );
     }
 
     // Insert products into OrderProducts
     for (const product of products) {
       await client.query(
-        'INSERT INTO orderproducts (order_id, product_id, product_name, quantity, product_disc, total_product_price) VALUES ($1, $2, $3, $4, $5, $6)',
-        [order_id, product.product_id, product.product_name, product.quantity, product.product_disc, product.total_product_price]
+        'INSERT INTO orderproducts (order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [order_id, product.product_id, product.product_name, product.product_price, product.quantity, product.product_disc, product.total_product_price]
       );
     }
 
