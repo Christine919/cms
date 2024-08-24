@@ -1,10 +1,10 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pkg from 'pg'; // Import the entire module
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
-import path  from 'path';
 
 const { Pool } = pkg; // Destructure Pool from the module
 
@@ -378,8 +378,6 @@ app.put('/appointments/:id', async (req, res) => {
   }
 });
 
-
-
 // Delete an appointment
 app.delete('/appointments/:id', async (req, res) => {
   try {
@@ -435,72 +433,55 @@ app.delete('/orders/:id', async (req, res) => {
 
 // Route to add a new order
 app.post('/orders', async (req, res) => {
+  console.log('Order Request Data:', req.body);
+
+ // Extract order data from the request body
+ const orderData = req.body;
+    
+ // Validate required fields
+ const { user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos, products, services } = orderData;
+
+  // Validate required fields
+  if (!user_id || !fname || !email || !phone_no || !total_order_price || !payment_method || !order_status || !photos || !products || !services) {
+    return res.status(400).json({ error: 'Missing required order data' });
+  }
+
+  const client = await pool.connect(); // Use a client to manage transactions
   try {
-    const orderData = req.body;
+    await client.query('BEGIN');
 
-    // Validate and convert data
-    const {
-      user_id,
-      fname,
-      email,
-      phone_no,
-      service_id,
-      service_name,
-      service_price,
-      product_id,
-      product_name,
-      product_price,
-      qty,
-      total_product_price,
-      total_order_price,
-      payment_method,
-      paid_date,
-      order_status,
-      order_remark
-    } = orderData;
+    // Insert into orders table
+    const orderResult = await client.query(
+      'INSERT INTO orders (user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING order_id',
+      [user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos]
+    );
+    
+    const order_id = orderResult.rows[0].order_id;
 
-    // Check for valid integers and convert empty strings to null or default values
-    const parsedServiceId = parseInt(service_id, 10) || null;
-    const parsedProductId = parseInt(product_id, 10) || null;
-    const parsedQty = parseInt(qty, 10) || 0; // Assuming qty is zero if invalid
-    const parsedServicePrice = parseFloat(service_price) || 0;
-    const parsedProductPrice = parseFloat(product_price) || 0;
-    const parsedTotalProductPrice = parseFloat(total_product_price) || 0;
-    const parsedTotalOrderPrice = parseFloat(total_order_price) || 0;
-
-    // Retrieve user_id based on phone_no
-    const customer = await getCustomerByPhoneNo(phone_no);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
+    // Insert services into OrderServices
+    for (const service of services) {
+      await client.query(
+        'INSERT INTO orderservices (order_id, service_id, service_name, service_disc, total_service_price) VALUES ($1, $2, $3, $4, $5)',
+        [order_id, service.service_id, service.service_name, service.service_disc, service.total_service_price]
+      );
     }
 
-    // Insert the order into the database
-    const result = await pool.query(
-      'INSERT INTO orders (user_id, fname, email, phone_no, service_id, service_name, service_price, product_id, product_name, product_price, qty, total_product_price, total_order_price, payment_method, paid_date, order_status, order_remark) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *',
-      [
-        customer.user_id, 
-        fname,
-        email,
-        phone_no,
-        parsedServiceId, 
-        service_name, 
-        parsedServicePrice, 
-        parsedProductId, 
-        product_name, 
-        parsedProductPrice, 
-        parsedQty, 
-        parsedTotalProductPrice, 
-        parsedTotalOrderPrice, 
-        payment_method, 
-        paid_date, 
-        order_status,
-        order_remark
-      ]
-    );
-    res.status(201).json({ message: 'Order created successfully', order: result.rows[0] });
+    // Insert products into OrderProducts
+    for (const product of products) {
+      await client.query(
+        'INSERT INTO orderproducts (order_id, product_id, product_name, quantity, product_disc, total_product_price) VALUES ($1, $2, $3, $4, $5, $6)',
+        [order_id, product.product_id, product.product_name, product.quantity, product.product_disc, product.total_product_price]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'Order created successfully', order_id });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error adding order:', error);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  } finally {
+    client.release();
   }
 });
 
