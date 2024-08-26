@@ -395,39 +395,220 @@ app.delete('/appointments/:id', async (req, res) => {
 // Get all orders
 app.get('/orders', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM order_dashboard');
-    res.json(result.rows);
+      const result = await pool.query(`
+          SELECT 
+              order_id, 
+              order_created_date, 
+              fname, 
+              phone_no, 
+              total_order_price, 
+              paid_date, 
+              order_status
+          FROM orders
+          ORDER BY order_created_date DESC
+      `);
+      res.status(200).json(result.rows);
   } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ error: 'Internal server error' });
+      console.error('Error fetching orders:', error);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/orders/:orderId', async (req, res) => {
+  const { orderId } = req.params;
+  try {
+      const orderResult = await pool.query(`
+          SELECT 
+              o.order_id, 
+              order_created_date,
+              o.fname, 
+              o.email, 
+              o.phone_no, 
+              o.total_order_price, 
+              o.payment_method, 
+              o.order_status, 
+              o.order_remark, 
+              o.photos::jsonb
+          FROM orders o
+          WHERE o.order_id = $1
+      `, [orderId]);
+
+      const servicesResult = await pool.query(`
+          SELECT 
+              os.service_name, 
+              os.service_price, 
+              os.service_disc, 
+              os.total_service_price
+          FROM orderservices os
+          WHERE os.order_id = $1
+      `, [orderId]);
+
+      const productsResult = await pool.query(`
+          SELECT 
+              op.product_name, 
+              op.product_price, 
+              op.quantity, 
+              op.product_disc, 
+              op.total_product_price
+          FROM orderproducts op
+          WHERE op.order_id = $1
+      `, [orderId]);
+
+      if (orderResult.rows.length === 0) {
+          return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const orderDetails = {
+          ...orderResult.rows[0],
+          services: servicesResult.rows,
+          products: productsResult.rows,
+      };
+
+      res.status(200).json(orderDetails);
+  } catch (error) {
+      console.error('Error fetching order details:', error);
+      res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Update an order
-app.put('/orders/:id', async (req, res) => {
+app.put('/orders/:orderId', async (req, res) => {
+  const orderId = req.params.orderId;
+
+  const { 
+      fname, 
+      email, 
+      phone_no, 
+      total_order_price, 
+      payment_method, 
+      order_status, 
+      order_remark, 
+      photos,
+      orderservices, // Array of services to update
+      orderproducts  // Array of products to update
+  } = req.body;
+
+  // Log incoming data
+  console.log('Incoming data for update:', { 
+      orderId, 
+      total_order_price, 
+      orderservices, 
+      orderproducts 
+  });
+
+  const client = await pool.connect(); // Initiate a connection to use transactions
+
   try {
-    const { id } = req.params;
-    const { user_id, service_id, product_id, qty, total_product_price, total_order_price, payment_method, paid_date, order_status, order_remark } = req.body;
-    await pool.query(
-      'UPDATE orders SET user_id = $1, service_id = $2, product_id = $3, qty = $4, total_product_price = $5, total_order_price = $6, payment_method = $7, paid_date = $8, order_status = $9, order_remark = $10 WHERE order_id = $11',
-      [user_id, service_id, product_id, qty, total_product_price, total_order_price, payment_method, paid_date, order_status, order_remark, id]
-    );
-    res.json({ message: 'Order updated successfully' });
+      console.log('Updating order:', { 
+          orderId, 
+          total_order_price, 
+          orderservices, 
+          orderproducts 
+      });
+      
+      // Validate and process data
+      if (isNaN(total_order_price)) {
+          throw new Error('Invalid total_order_price');
+      }
+    
+      await client.query('BEGIN'); // Start a transaction
+
+      // Update the order in the orders table
+      await client.query(`
+          UPDATE orders
+          SET 
+              fname = $1, 
+              email = $2, 
+              phone_no = $3, 
+              total_order_price = $4, 
+              payment_method = $5, 
+              order_status = $6, 
+              order_remark = $7, 
+              photos = $8
+          WHERE order_id = $9
+      `, [
+          fname, 
+          email, 
+          phone_no, 
+          parseFloat(total_order_price), // Ensure price is a number
+          payment_method, 
+          order_status, 
+          order_remark, 
+          JSON.stringify(photos), 
+          orderId
+      ]);
+
+      // Update the services in the orderservices table
+      for (let service of orderservices || []) {
+          const { order_service_id, service_name, service_price, service_disc, total_service_price } = service;
+
+          await client.query(`
+              UPDATE orderservices
+              SET 
+                  service_name = $1, 
+                  service_price = $2, 
+                  service_disc = $3, 
+                  total_service_price = $4
+              WHERE order_service_id = $5 AND order_id = $6
+          `, [
+              service_name, 
+              parseFloat(service_price), // Ensure price is a number
+              parseFloat(service_disc), // Ensure discount is a number
+              parseFloat(total_service_price), // Ensure total price is a number
+              order_service_id,
+              orderId
+          ]);
+      }
+
+      // Update the products in the orderproducts table
+      for (let product of orderproducts || []) {
+          const { order_product_id, product_name, product_price, quantity, product_disc, total_product_price } = product;
+
+          await client.query(`
+              UPDATE orderproducts
+              SET 
+                  product_name = $1, 
+                  product_price = $2, 
+                  quantity = $3, 
+                  product_disc = $4, 
+                  total_product_price = $5
+              WHERE order_product_id = $6 AND order_id = $7
+          `, [
+              product_name, 
+              parseFloat(product_price), // Ensure price is a number
+              parseInt(quantity, 10), // Ensure quantity is an integer
+              parseFloat(product_disc), // Ensure discount is a number
+              parseFloat(total_product_price), // Ensure total price is a number
+              order_product_id,
+              orderId
+          ]);
+      }
+
+      await client.query('COMMIT'); // Commit the transaction
+
+      res.status(200).json({ message: 'Order, services, and products updated successfully' });
   } catch (error) {
-    console.error('Error updating order:', error);
-    res.status(500).json({ error: 'Internal server error' });
+      await client.query('ROLLBACK'); // Roll back the transaction on error
+      console.error('Error updating order, services, or products:', error);
+      res.status(500).json({ error: 'Internal server error' });
+  } finally {
+      client.release(); // Release the client connection back to the pool
   }
 });
 
 // Delete an order
-app.delete('/orders/:id', async (req, res) => {
+app.delete('/orders/:orderId', async (req, res) => {
+  const { orderId } = req.params;
+
   try {
-    const { id } = req.params;
-    await pool.query('DELETE FROM orders WHERE order_id = $1', [id]);
-    res.json({ message: 'Order deleted successfully' });
+      await pool.query(`
+          DELETE FROM orders WHERE order_id = $1
+      `, [orderId]);
+
+      res.status(200).json({ message: 'Order deleted successfully' });
   } catch (error) {
-    console.error('Error deleting order:', error);
-    res.status(500).json({ error: 'Internal server error' });
+      console.error('Error deleting order:', error);
+      res.status(500).json({ error: 'Internal server error' });
   }
 });
 
