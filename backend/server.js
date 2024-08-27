@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pkg from 'pg'; // Import the entire module
+import pkg from 'pg'; 
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 
@@ -81,17 +81,6 @@ app.post('/upload', (req, res) => {
   });
 });
 
-// Define the getCustomerByPhoneNo function
-async function getCustomerByPhoneNo(phoneNo) {
-  try {
-    const result = await pool.query('SELECT * FROM customers WHERE phone_no = $1', [phoneNo]);
-    return result.rows[0]; // Return the first row if found, otherwise return undefined
-  } catch (error) {
-    console.error('Error fetching customer details:', error);
-    throw error; // Rethrow the error to be handled by the caller
-  }
-};
-
 // Login endpoint
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
@@ -111,6 +100,17 @@ app.post('/login', (req, res) => {
   }
 });
 
+// CRUD Operations for Customers
+// Define the getCustomerByPhoneNo function
+async function getCustomerByPhoneNo(phoneNo) {
+  try {
+    const result = await pool.query('SELECT * FROM customers WHERE phone_no = $1', [phoneNo]);
+    return result.rows[0]; // Return the first row if found, otherwise return undefined
+  } catch (error) {
+    console.error('Error fetching customer details:', error);
+    throw error; // Rethrow the error to be handled by the caller
+  }
+};
 
 // Route to get a customer by phone number
 app.get('/customers/:phoneNo', async (req, res) => {
@@ -127,17 +127,6 @@ app.get('/customers/:phoneNo', async (req, res) => {
   }
 });
 
-// Get all customers
-app.get('/customers', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM customers');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching customers:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Route to add a new customer
 app.post('/customers', async (req, res) => {
   try {
@@ -150,6 +139,17 @@ app.post('/customers', async (req, res) => {
   } catch (error) {
     console.error('Error adding customer:', error); // Log the error
     res.status(500).json({ message: 'Internal Server Error', error: error.message }); // Send error message to client
+  }
+});
+
+// Get all customers
+app.get('/customers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM customers');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -182,18 +182,6 @@ app.delete('/customers/:id', async (req, res) => {
 });
 
 // CRUD Operations for Services
-
-// Get all services
-app.get('/services', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM services');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Add a new service
 app.post('/services', async (req, res) => {
   try {
@@ -203,6 +191,17 @@ app.post('/services', async (req, res) => {
     res.status(201).json({ message: 'Service created successfully', service: result.rows[0] });
   } catch (error) {
     console.error('Error adding service:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all services
+app.get('/services', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM services');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching services:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -233,31 +232,7 @@ app.delete('/services/:id', async (req, res) => {
   }
 });
 
-app.get('/api/services', async (req, res) => {
-  try {
-    const services = await pool.query(
-      'SELECT service_id, service_name, service_price FROM services'
-    );
-    res.json(services.rows);
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 // CRUD Operations for Products
-
-// Get all products
-app.get('/products', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM products');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Add a new product
 app.post('/products', async (req, res) => {
   try {
@@ -273,16 +248,26 @@ app.post('/products', async (req, res) => {
   }
 });
 
+// Get all products
+app.get('/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Update a product
 app.put('/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { product_name, product_price, stock } = req.body;
-    if (!product_name || product_price === undefined || stock === undefined) {
-      return res.status(400).json({ error: 'Product name, price, and stock are required' });
-    }
+
     await pool.query('UPDATE products SET product_name = $1, product_price = $2, stock = $3 WHERE product_id = $4', [product_name, product_price, stock, id]);
-    res.json({ message: 'Product updated successfully' });
+    const result = await pool.query('SELECT * FROM products WHERE product_id = $1', [id]); 
+    res.json({ message: 'Product updated successfully',  product: result.rows[0] });
   } catch (error) {
     console.error('Error updating product:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -301,32 +286,7 @@ app.delete('/products/:id', async (req, res) => {
   }
 });
 
-app.get('/api/products', async (req, res) => {
-  try {
-    const products = await pool.query(
-      'SELECT product_id, product_name, product_price FROM products'
-    );
-    res.json(products.rows);
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 // CRUD Operations for Appointments
-
-// Get all appointments
-app.get('/appointments', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM appointments');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-
 // Route to add a new appointment
 app.post('/appointments', async (req, res) => {
   try {
@@ -347,6 +307,17 @@ app.post('/appointments', async (req, res) => {
   } catch (error) {
     console.error('Error adding appointment:', error);
     res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
+// Get all appointments
+app.get('/appointments', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM appointments');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -391,6 +362,59 @@ app.delete('/appointments/:id', async (req, res) => {
 });
 
 // CRUD Operations for Orders
+// Route to add a new order
+app.post('/orders', async (req, res) => {
+  console.log('Order Request Data:', req.body);
+
+ // Extract order data from the request body
+ const orderData = req.body;
+    
+ // Validate required fields
+ const { user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos, products, services } = orderData;
+
+  // Validate required fields
+  if (!user_id || !fname || !email || !phone_no || !total_order_price || !payment_method || !order_status || !photos || !products || !services) {
+    return res.status(400).json({ error: 'Missing required order data' });
+  }
+
+  const client = await pool.connect(); // Use a client to manage transactions
+  try {
+    await client.query('BEGIN');
+
+    // Insert into orders table
+    const orderResult = await client.query(
+      'INSERT INTO orders (user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING order_id',
+      [user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos]
+    );
+    
+    const order_id = orderResult.rows[0].order_id;
+
+    // Insert services into OrderServices
+    for (const service of services) {
+      await client.query(
+        'INSERT INTO orderservices (order_id, service_id, service_name, service_price, service_disc, total_service_price) VALUES ($1, $2, $3, $4, $5, $6)',
+        [order_id, service.service_id, service.service_name, service.service_price, service.service_disc, service.total_service_price]
+      );
+    }
+
+    // Insert products into OrderProducts
+    for (const product of products) {
+      await client.query(
+        'INSERT INTO orderproducts (order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [order_id, product.product_id, product.product_name, product.product_price, product.quantity, product.product_disc, product.total_product_price]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'Order created successfully', order_id });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error adding order:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  } finally {
+    client.release();
+  }
+});
 
 // Get all orders
 app.get('/orders', async (req, res) => {
@@ -414,6 +438,7 @@ app.get('/orders', async (req, res) => {
   }
 });
 
+// Get all orders by ID
 app.get('/orders/:orderId', async (req, res) => {
   const { orderId } = req.params;
   try {
@@ -472,127 +497,58 @@ app.get('/orders/:orderId', async (req, res) => {
 });
 
 // Update an order
-app.put('/orders/:orderId', async (req, res) => {
-  const orderId = req.params.orderId;
-
-  const { 
-      fname, 
-      email, 
-      phone_no, 
-      total_order_price, 
-      payment_method, 
-      order_status, 
-      order_remark, 
-      photos,
-      orderservices, // Array of services to update
-      orderproducts  // Array of products to update
-  } = req.body;
-
-  // Log incoming data
-  console.log('Incoming data for update:', { 
-      orderId, 
-      total_order_price, 
-      orderservices, 
-      orderproducts 
-  });
-
-  const client = await pool.connect(); // Initiate a connection to use transactions
+app.put('/orders/:id', async (req, res) => {
+  const orderId = req.params.id;
+  const { fname, email, phone_no, total_order_price, payment_method, paid_date, order_status, order_remark } = req.body;
 
   try {
-      console.log('Updating order:', { 
-          orderId, 
-          total_order_price, 
-          orderservices, 
-          orderproducts 
-      });
-      
-      // Validate and process data
-      if (isNaN(total_order_price)) {
-          throw new Error('Invalid total_order_price');
-      }
-    
-      await client.query('BEGIN'); // Start a transaction
+      await pool.query(`
+          UPDATE orders 
+          SET fname = $1, email = $2, phone_no = $3, total_order_price = $4, payment_method = $5, paid_date = $6, order_status = $7, order_remark = $8
+          WHERE order_id = $6
+      `, [fname, email, phone_no, total_order_price, payment_method, paid_date, order_status, order_remark, orderId]);
 
-      // Update the order in the orders table
-      await client.query(`
-          UPDATE orders
-          SET 
-              fname = $1, 
-              email = $2, 
-              phone_no = $3, 
-              total_order_price = $4, 
-              payment_method = $5, 
-              order_status = $6, 
-              order_remark = $7, 
-              photos = $8
-          WHERE order_id = $9
-      `, [
-          fname, 
-          email, 
-          phone_no, 
-          parseFloat(total_order_price), // Ensure price is a number
-          payment_method, 
-          order_status, 
-          order_remark, 
-          JSON.stringify(photos), 
-          orderId
-      ]);
-
-      // Update the services in the orderservices table
-      for (let service of orderservices || []) {
-          const { order_service_id, service_name, service_price, service_disc, total_service_price } = service;
-
-          await client.query(`
-              UPDATE orderservices
-              SET 
-                  service_name = $1, 
-                  service_price = $2, 
-                  service_disc = $3, 
-                  total_service_price = $4
-              WHERE order_service_id = $5 AND order_id = $6
-          `, [
-              service_name, 
-              parseFloat(service_price), // Ensure price is a number
-              parseFloat(service_disc), // Ensure discount is a number
-              parseFloat(total_service_price), // Ensure total price is a number
-              order_service_id,
-              orderId
-          ]);
-      }
-
-      // Update the products in the orderproducts table
-      for (let product of orderproducts || []) {
-          const { order_product_id, product_name, product_price, quantity, product_disc, total_product_price } = product;
-
-          await client.query(`
-              UPDATE orderproducts
-              SET 
-                  product_name = $1, 
-                  product_price = $2, 
-                  quantity = $3, 
-                  product_disc = $4, 
-                  total_product_price = $5
-              WHERE order_product_id = $6 AND order_id = $7
-          `, [
-              product_name, 
-              parseFloat(product_price), // Ensure price is a number
-              parseInt(quantity, 10), // Ensure quantity is an integer
-              parseFloat(product_disc), // Ensure discount is a number
-              parseFloat(total_product_price), // Ensure total price is a number
-              order_product_id,
-              orderId
-          ]);
-      }
-
-      await client.query('COMMIT'); // Commit the transaction
-
-      res.status(200).json({ message: 'Order, services, and products updated successfully' });
+      res.status(200).json({ message: 'Order updated successfully' });
   } catch (error) {
-      await client.query('ROLLBACK'); // Roll back the transaction on error
-      console.error('Error updating order, services, or products:', error);
-      res.status(500).json({ error: 'Internal server error' });
-  } finally {
-      client.release(); // Release the client connection back to the pool
+      console.error('Error updating order:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.put('/orders/:id/orderservices', async (req, res) => {
+
+  const orderId = req.params.id;
+  const {  service_id, service_name, service_price, service_disc, total_service_price } = req.body;
+
+  try {
+      await pool.query(`
+          UPDATE orderservices 
+          SET service_id, = $1, service_name = $2, service_price = $3, service_disc = $4, total_service_price = $5
+          WHERE order_id = $6
+      `, [service_id, service_name, service_price, service_disc, total_service_price, orderId]);
+
+      res.status(200).json({ message: 'Services updated successfully' });
+  } catch (error) {
+      console.error('Error updating order:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.put('/orders/:id/orderproducts', async (req, res) => {
+  const orderId = req.params.id;
+  const {  product_id,product_name, product_price, quantity, product_disc, total_product_price } = req.body;
+
+  try {
+      await pool.query(`
+          UPDATE orderproducts 
+          SET product_id, = $1, product_name = $2, product_price = $3, quantity = $4, product_disc = $5, total_product_price = $6
+          WHERE order_id = $6
+      `, [product_id,product_name, product_price, quantity, product_disc, total_product_price, orderId]);
+
+      res.status(200).json({ message: 'Products updated successfully' });
+  } catch (error) {
+      console.error('Error updating order:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
@@ -609,60 +565,6 @@ app.delete('/orders/:orderId', async (req, res) => {
   } catch (error) {
       console.error('Error deleting order:', error);
       res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Route to add a new order
-app.post('/orders', async (req, res) => {
-  console.log('Order Request Data:', req.body);
-
- // Extract order data from the request body
- const orderData = req.body;
-    
- // Validate required fields
- const { user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos, products, services } = orderData;
-
-  // Validate required fields
-  if (!user_id || !fname || !email || !phone_no || !total_order_price || !payment_method || !order_status || !photos || !products || !services) {
-    return res.status(400).json({ error: 'Missing required order data' });
-  }
-
-  const client = await pool.connect(); // Use a client to manage transactions
-  try {
-    await client.query('BEGIN');
-
-    // Insert into orders table
-    const orderResult = await client.query(
-      'INSERT INTO orders (user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING order_id',
-      [user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos]
-    );
-    
-    const order_id = orderResult.rows[0].order_id;
-
-    // Insert services into OrderServices
-    for (const service of services) {
-      await client.query(
-        'INSERT INTO orderservices (order_id, service_id, service_name, service_price, service_disc, total_service_price) VALUES ($1, $2, $3, $4, $5, $6)',
-        [order_id, service.service_id, service.service_name, service.service_price, service.service_disc, service.total_service_price]
-      );
-    }
-
-    // Insert products into OrderProducts
-    for (const product of products) {
-      await client.query(
-        'INSERT INTO orderproducts (order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [order_id, product.product_id, product.product_name, product.product_price, product.quantity, product.product_disc, product.total_product_price]
-      );
-    }
-
-    await client.query('COMMIT');
-    res.status(201).json({ message: 'Order created successfully', order_id });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error adding order:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: error.message });
-  } finally {
-    client.release();
   }
 });
 
