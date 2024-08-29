@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pkg from 'pg'; 
+import pkg  from 'pg'; 
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 
@@ -416,6 +416,42 @@ app.post('/orders', async (req, res) => {
   }
 });
 
+// Add new service to an order
+app.post('/orders/:orderId/services', async (req, res) => {
+  const { orderId } = req.params;
+  const { service_id, service_name, service_price, service_disc } = req.body;
+
+  try {
+    await query(
+      `INSERT INTO orderservices (order_id, service_id, service_name, service_price, service_disc, total_service_price)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [orderId, service_id, service_name, service_price, service_disc, service_price] // Calculate total_service_price as needed
+    );
+    res.send({ message: 'Service added successfully' });
+  } catch (error) {
+    console.error('Error adding service:', error);
+    res.status(500).send('Error adding service');
+  }
+});
+
+// Add new product to an order
+app.post('/orders/:orderId/products', async (req, res) => {
+  const { orderId } = req.params;
+  const { product_id, product_name, product_price, quantity, product_disc } = req.body;
+
+  try {
+    await query(
+      `INSERT INTO orderproducts (order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [orderId, product_id, product_name, product_price, quantity, product_disc, product_price * quantity] // Calculate total_product_price
+    );
+    res.send({ message: 'Product added successfully' });
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).send('Error adding product');
+  }
+});
+
 // Get all orders
 app.get('/orders', async (req, res) => {
   try {
@@ -460,6 +496,8 @@ app.get('/orders/:orderId', async (req, res) => {
 
       const servicesResult = await pool.query(`
           SELECT 
+              os.order_service_id,
+              os.service_id,
               os.service_name, 
               os.service_price, 
               os.service_disc, 
@@ -470,6 +508,8 @@ app.get('/orders/:orderId', async (req, res) => {
 
       const productsResult = await pool.query(`
           SELECT 
+             op.order_product_id,
+             op.product_id,
               op.product_name, 
               op.product_price, 
               op.quantity, 
@@ -497,74 +537,134 @@ app.get('/orders/:orderId', async (req, res) => {
 });
 
 // Update an order
-app.put('/orders/:id', async (req, res) => {
-  const orderId = req.params.id;
-  const { fname, email, phone_no, total_order_price, payment_method, paid_date, order_status, order_remark } = req.body;
+app.put('/orders/:orderId', async (req, res) => {
+  const { orderId } = req.params;
+  const { fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, services, products } = req.body;
 
   try {
-      await pool.query(`
+      // Update order details
+      const updateOrderQuery = `
           UPDATE orders 
-          SET fname = $1, email = $2, phone_no = $3, total_order_price = $4, payment_method = $5, paid_date = $6, order_status = $7, order_remark = $8
-          WHERE order_id = $6
-      `, [fname, email, phone_no, total_order_price, payment_method, paid_date, order_status, order_remark, orderId]);
+          SET fname = $1, email = $2, phone_no = $3, total_order_price = $4, payment_method = $5, order_status = $6, order_remark = $7 
+          WHERE order_id = $8
+      `;
+      await pool.query(updateOrderQuery, [fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, orderId]);
 
-      res.status(200).json({ message: 'Order updated successfully' });
+      // Update existing services
+      for (let service of services) {
+          const { order_service_id, service_name, service_price, service_disc, total_service_price } = service;
+          if (order_service_id) {
+              // Update existing service
+              const updateServiceQuery = `
+                  UPDATE orderservices
+                  SET service_name = $1, service_price = $2, service_disc = $3, total_service_price = $4
+                  WHERE order_service_id = $5
+              `;
+              await pool.query(updateServiceQuery, [service_name, service_price, service_disc, total_service_price, order_service_id]);
+          } else {
+              return res.status(400).json({ error: 'Service ID missing for update' });
+          }
+      }
+
+      // Update existing products
+      for (let product of products) {
+          const { order_product_id, product_name, product_price, quantity, product_disc, total_product_price } = product;
+          if (order_product_id) {
+              // Update existing product
+              const updateProductQuery = `
+                  UPDATE orderproducts
+                  SET product_name = $1, product_price = $2, quantity = $3, product_disc = $4, total_product_price = $5
+                  WHERE order_product_id = $6
+              `;
+              await pool.query(updateProductQuery, [product_name, product_price, quantity, product_disc, total_product_price, order_product_id]);
+          } else {
+              return res.status(400).json({ error: 'Product ID missing for update' });
+          }
+      }
+
+      res.json({ message: 'Order updated successfully' });
   } catch (error) {
       console.error('Error updating order:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: error.message });
   }
 });
 
-app.put('/orders/:id/orderservices', async (req, res) => {
-
-  const orderId = req.params.id;
-  const {  service_id, service_name, service_price, service_disc, total_service_price } = req.body;
+// Add new service
+app.post('/orderservices', async (req, res) => {
+  const { order_id, service_id, service_name, service_price, service_disc, total_service_price } = req.body;
 
   try {
-      await pool.query(`
-          UPDATE orderservices 
-          SET service_id, = $1, service_name = $2, service_price = $3, service_disc = $4, total_service_price = $5
-          WHERE order_id = $6
-      `, [service_id, service_name, service_price, service_disc, total_service_price, orderId]);
+      // Validate input data
+      if (!order_id || !service_name || service_price === undefined) {
+          return res.status(400).json({ error: 'Missing required fields' });
+      }
 
-      res.status(200).json({ message: 'Services updated successfully' });
+      const insertServiceQuery = `
+          INSERT INTO orderservices (order_id, service_id, service_name, service_price, service_disc, total_service_price)
+          VALUES ($1, $2, $3, $4, $5, $6) RETURNING order_service_id
+      `;
+      const result = await pool.query(insertServiceQuery, [order_id, service_id, service_name, service_price, service_disc, total_service_price]);
+      const newServiceId = result.rows[0].order_service_id;
+      res.json({ order_service_id: newServiceId, ...req.body });
   } catch (error) {
-      console.error('Error updating order:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
+      console.error('Error adding service:', error);
+      res.status(500).json({ error: error.message });
   }
 });
 
-app.put('/orders/:id/orderproducts', async (req, res) => {
-  const orderId = req.params.id;
-  const {  product_id,product_name, product_price, quantity, product_disc, total_product_price } = req.body;
+// Add new product
+app.post('/orderproducts', async (req, res) => {
+  const { order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price } = req.body;
 
   try {
-      await pool.query(`
-          UPDATE orderproducts 
-          SET product_id, = $1, product_name = $2, product_price = $3, quantity = $4, product_disc = $5, total_product_price = $6
-          WHERE order_id = $6
-      `, [product_id,product_name, product_price, quantity, product_disc, total_product_price, orderId]);
+      if (!order_id || !product_id) {
+          return res.status(400).json({ error: 'Missing required fields' });
+      }
 
-      res.status(200).json({ message: 'Products updated successfully' });
+      const insertProductQuery = `
+          INSERT INTO orderproducts (order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `;
+      await pool.query(insertProductQuery, [order_id, product_id, product_name, product_price, quantity, product_disc, total_product_price]);
+
+      res.json({ message: 'Product added successfully' });
   } catch (error) {
-      console.error('Error updating order:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
+      console.error('Error adding product:', error);
+      res.status(500).json({ error: error.message });
   }
 });
 
 // Delete an order
 app.delete('/orders/:orderId', async (req, res) => {
   const { orderId } = req.params;
-
   try {
-      await pool.query(`
-          DELETE FROM orders WHERE order_id = $1
-      `, [orderId]);
+      await pool.query('DELETE FROM orders WHERE order_id = $1', [orderId]);
+      await pool.query('DELETE FROM orderservices WHERE order_id = $1', [orderId]);
+      await pool.query('DELETE FROM orderproducts WHERE order_id = $1', [orderId]);
 
-      res.status(200).json({ message: 'Order deleted successfully' });
+      res.json({ message: 'Order and associated services/products deleted successfully' });
   } catch (error) {
-      console.error('Error deleting order:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/orders/:orderId/service/:serviceId', async (req, res) => {
+  const { serviceId } = req.params;
+  try {
+      await pool.query('DELETE FROM orderservices WHERE order_service_id = $1', [serviceId]);
+      res.json({ message: 'Service deleted successfully' });
+  } catch (error) {
+      res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/orders/:orderId/product/:productId', async (req, res) => {
+  const { productId } = req.params;
+  try {
+      await pool.query('DELETE FROM orderproducts WHERE order_product_id = $1', [productId]);
+      res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+      res.status(500).json({ error: error.message });
   }
 });
 
