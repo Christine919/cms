@@ -153,6 +153,29 @@ app.get('/customers', async (req, res) => {
   }
 });
 
+// Get all customers by ID
+app.get('/customers/id/:id', async (req, res) => {
+  const customerId = parseInt(req.params.id, 10); // Convert ID to integer for safety
+
+  if (isNaN(customerId)) {
+    return res.status(400).json({ message: 'Invalid customer ID' });
+  }
+
+  try {
+    const result = await pool.query('SELECT * FROM customers WHERE user_id = $1', [customerId]); // Fetch customer details by ID
+    const customer = result.rows[0]; // Get the first result if found
+
+    if (customer) {
+      res.json(customer); // Send customer details as response
+    } else {
+      res.status(404).json({ message: 'Customer not found' }); // Customer not found
+    }
+  } catch (error) {
+    console.error('Error fetching customer:', error);
+    res.status(500).json({ message: 'Internal server error' }); // Server error
+  }
+});
+
 // Update a customer
 app.put('/customers/:id', async (req, res) => {
   try {
@@ -171,9 +194,15 @@ app.put('/customers/:id', async (req, res) => {
 
 // Delete a customer
 app.delete('/customers/:id', async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
+    // Optionally delete or update related orders
+    await pool.query('DELETE FROM orders WHERE user_id = $1', [id]);
+    
+    // Now delete the customer
     await pool.query('DELETE FROM customers WHERE user_id = $1', [id]);
+
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
     console.error('Error deleting customer:', error);
