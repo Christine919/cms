@@ -488,6 +488,7 @@ app.get('/orders', async (req, res) => {
           SELECT 
               order_id, 
               order_created_date, 
+              user_id,
               fname, 
               phone_no, 
               total_order_price, 
@@ -511,6 +512,7 @@ app.get('/orders/:orderId', async (req, res) => {
           SELECT 
               o.order_id, 
               order_created_date,
+              o.user_id,
               o.fname, 
               o.email, 
               o.phone_no, 
@@ -565,6 +567,13 @@ app.get('/orders/:orderId', async (req, res) => {
   }
 });
 
+// Get all orders by user ID
+app.get('/orders/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const orders = await pool.query('SELECT * FROM orders WHERE user_id = $1', [userId]);
+  res.json(orders.rows);
+});
+
 // Update an order
 app.put('/orders/:orderId', async (req, res) => {
   const { orderId } = req.params;
@@ -613,8 +622,9 @@ app.put('/orders/:orderId', async (req, res) => {
 
       res.json({ message: 'Order updated successfully' });
   } catch (error) {
-      console.error('Error updating order:', error);
-      res.status(500).json({ error: error.message });
+    console.error("Error updating order:", error);
+    throw error;
+      // res.status(500).json({ error: error.message });
   }
 });
 
