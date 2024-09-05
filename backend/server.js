@@ -1,18 +1,15 @@
 import express from 'express';
-import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pkg  from 'pg'; 
 import jwt from 'jsonwebtoken';
-import multer from 'multer';
-
-const { Pool } = pkg; // Destructure Pool from the module
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const { Pool } = pkg;
 
 // PostgreSQL connection pool
 const pool = new Pool({
@@ -23,63 +20,12 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
-// Secret key for JWT
-const JWT_SECRET = 'your_jwt_secret';
-
 // Middleware
 app.use(cors({
   origin: 'http://localhost:3000', // Adjust if your frontend is on a different port or domain
 }));
 
 app.use(express.json());
-
-// Set Storage Engine
-const storage = multer.diskStorage({
-  destination: './uploads/', // Folder to save uploaded files
-  filename: function(req, file, cb) {
-    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
-  }
-});
-
-// Initialize Upload
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // Limit to 10MB per file
-  fileFilter: function(req, file, cb) {
-    checkFileType(file, cb);
-  }
-}).array('photos', 10); // Handling multiple file uploads, max 10 files
-
-// Check File Type
-function checkFileType(file, cb) {
-  const filetypes = /jpeg|jpg|png|gif/;
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
-
-  if (mimetype && extname) {
-    return cb(null, true);
-  } else {
-    cb('Error: Images Only!');
-  }
-}
-
-// Route to handle file upload
-app.post('/upload', (req, res) => {
-  upload(req, res, (err) => {
-    if (err) {
-      res.status(400).json({ message: err });
-    } else {
-      if (req.files == undefined) {
-        res.status(400).json({ message: 'No File Selected!' });
-      } else {
-        res.status(200).json({
-          message: 'File Uploaded!',
-          files: req.files.map(file => file.filename)
-        });
-      }
-    }
-  });
-});
 
 // Login endpoint
 app.post('/login', (req, res) => {
@@ -399,10 +345,10 @@ app.post('/orders', async (req, res) => {
  const orderData = req.body;
     
  // Validate required fields
- const { user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos, products, services } = orderData;
+ const { user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, products, services } = orderData;
 
   // Validate required fields
-  if (!user_id || !fname || !email || !phone_no || !total_order_price || !payment_method || !order_status || !photos || !products || !services) {
+  if (!user_id || !fname || !email || !phone_no || !total_order_price || !payment_method || !order_status || !products || !services) {
     return res.status(400).json({ error: 'Missing required order data' });
   }
 
@@ -412,8 +358,8 @@ app.post('/orders', async (req, res) => {
 
     // Insert into orders table
     const orderResult = await client.query(
-      'INSERT INTO orders (user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING order_id',
-      [user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark, photos]
+      'INSERT INTO orders (user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING order_id',
+      [user_id, fname, email, phone_no, total_order_price, payment_method, order_status, order_remark]
     );
     
     const order_id = orderResult.rows[0].order_id;
